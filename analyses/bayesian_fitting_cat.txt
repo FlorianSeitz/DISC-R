@@ -1,0 +1,31 @@
+# GCM with individual fitting
+model{
+  # Priors for each subject
+  for (i in 1:ns){
+    pre_w1[i] ~ dbeta(1,1)
+    pre_w2[i] ~ dbeta(1,1)
+    pre_w3[i] ~ dbeta(1,1)
+    w1[i] <- pre_w1[i]/sum(pre_w1[i], pre_w2[i], pre_w3[i])
+    w2[i] <- pre_w2[i]/sum(pre_w1[i], pre_w2[i], pre_w3[i])
+    w3[i] <- pre_w3[i]/sum(pre_w1[i], pre_w2[i], pre_w3[i])
+
+    c[i] ~ dunif(0,5)
+  }
+
+  # Observed and predicted data
+  for (i in 1:ns){
+    for (j in 3:nt){ 
+  	  for (k in 1:nt){
+        dist[k, j-1] <- w1[i] * abs(stim[j,1] - stim[k,1]) + w2[i] * abs(stim[j,2] - stim[k,2]) + w3[i] * abs(stim[j,3] - stim[k,3]) 
+        simi[k, j-1] <- exp(-c[i] * dist[k, j-1])
+      }
+      sim_to_cat0[j-1] <- max(sum(simi[1:(j-1), j-1][true_cat[1:(j-1)] == 0]), 0)
+      sim_to_cat1[j-1] <- max(sum(simi[1:(j-1), j-1][true_cat[1:(j-1)] == 1]), 0)
+
+#      choice_pred[j-1] <- sum(simi[true_cat[1:(j-1)] == 1, j-1]) / (sum(simi[true_cat[1:(j-1)] == 1, j-1]) + sum(simi[true_cat[1:(j-1)] == 0, j-1]))
+      choice_pred[j-1] <- sim_to_cat1[j-1] / (sim_to_cat1[j-1] + sim_to_cat0[j-1])
+      response[j] ~ dbern(choice_pred[j-1])
+
+    }
+  }
+}
