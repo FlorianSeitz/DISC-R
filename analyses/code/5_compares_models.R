@@ -27,4 +27,4 @@ setnames(ll_learn, cols, out_cols)
 AIC <- ll_learn[, -2 * .SD + 2 * c(5, 5, 2, 2), by = subj_id]
 AIC[, random := dt[block == "training", .(V1 = -2 * gof(obs = response, pred = rep(0.5, length(response)), type = "loglik", response = 'disc')), by = subj_id][, V1]]
 
-cat("\n Generated ll_test, ll_learn, and AIC \n")
+cat("\n Generated ll_test, weights, ll_learn, and AIC \n")
