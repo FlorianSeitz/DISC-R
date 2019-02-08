@@ -4,7 +4,7 @@ library(data.table)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 source("fig_setup.R")
 
-dat <- fread("../../data/processed/categorization_data_with_predictions.csv")
+dat <- fread("../../data/processed/categorization_exp_pretest.csv", colClasses = list("character" = "stim"))
 
 dat <- dat[block != "training"]
 
@@ -22,9 +22,10 @@ dat[block == "test", .(too_slow = mean(is.na(time))), by = list(subj_id)]
 sum_dat <- dat[, .(too_slow = mean(is.na(time))), by = list(subj_id, block, stim)] 
 ggplot(sum_dat, aes(x = stim, y = too_slow)) +
   geom_violin() +
-  facet_wrap(~block) +
+  facet_grid(.~block, scales = "free_x") +
   ylab("stimulus") +
   xlab("too slow") +
   ggtitle("Rate of trials where time pressure was exceeded") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
+ggsave("../../output/images/too_slow.jpg")

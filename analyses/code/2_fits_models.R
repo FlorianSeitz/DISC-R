@@ -20,10 +20,10 @@ fit_ll <- function(data, metric, unidim = FALSE){
 # Fit Parameters of discrete and Minkowsi model 
 fitted_parm_gcm <- rbindlist(lapply(c("d", "m"), function(x) dt[block == "training", {print(.GRP); fit_ll(.SD, metric = x)}, by = subj_id]), id = "metric")
 fitted_parm_gcm[, metric := ifelse(metric == 1, "disc", "mink")]
-fwrite(fitted_parm_gcm, file = "../../data/processed/categorization_fitted_parm_gcm.csv")
+fwrite(fitted_parm_gcm, file = "../../data/processed/categorization_pretest_fitted_parm_gcm.csv")
 
 # Fit parameters to unidim model
 fitted_parm_gcm_unidim <- rbindlist(lapply(c("d", "m"), function(x) dt[, {print(.GRP); fit_ll(.SD, metric = x, unidim = TRUE)}, by = subj_id]), id = "metric")
 fitted_parm_gcm_unidim[, metric := ifelse(metric == 1, "disc", "mink")]
-fwrite(fitted_parm_gcm_unidim, file = "../../data/processed/categorization_fitted_parm_gcm_unidim.csv")
+fwrite(fitted_parm_gcm_unidim, file = "../../data/processed/categorization_pretest_fitted_parm_gcm_unidim.csv")
 
