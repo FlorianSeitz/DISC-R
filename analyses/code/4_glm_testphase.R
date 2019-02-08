@@ -39,7 +39,7 @@ ggplot(data = betas, aes(x = stim, y = beta)) +
   ylim(0, 1) +
   facet_grid(subj_id~stim_type, scales = "free_x", space = "free") +
   guides(fill = "none") +
-  scale_color_manual(values = col) +
+  scale_color_manual(values = cols) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
   xl + yl
