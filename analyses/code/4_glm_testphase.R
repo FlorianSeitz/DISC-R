@@ -1,22 +1,37 @@
 # Runs a general linear model with logit link on the test dta
 library(data.table)
 library(lme4)
-library(lsmeans)
+library(emmeans) # package emmeans needs to be attached for follow-up tests. 
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 source("3_predicts_models.R", chdir = TRUE)
 source("fig_setup.R")
 
-dt <- dt[block == "test", ]
+dt <- dt[block == "test" & stim_type == "new", ]
 
-dt[, time_pressure_cond := as.integer(time_pressure_cond)]
+dt[, time_pressure_cond := as.factor(time_pressure_cond)]
 dt[, subj_id := as.factor(subj_id)]
-dt[, stim := as.factor(stim)]
+dt[, stim := factor(stim, labels = c("100", "003", "221", "231", "321", "331"))]
 
-glm_res <- glmer(response ~ stim + (0 + stim|subj_id), data = dt, family = binomial) # time_pressure_cond * 
-summary(glm_res)
+dt <- rbind(dt, dt)
+dt[1:700, time_pressure_cond := 0]
 
-betas <- as.data.table(fixef(glm_res), keep.rownames = TRUE)
+full_model <- glmer(response ~ time_pressure_cond * stim + (0 + stim|subj_id), data = dt, family = binomial) # time_pressure_cond * 
+summary(full_model)
+
+restricted_model <- glmer(response ~ time_pressure_cond + stim + (0 + stim|subj_id), data = dt, family = binomial) # time_pressure_cond * 
+summary(restricted_model)
+
+anova(full_model, restricted_model)
+
+emm1 <- emmeans(full_model, ~ stim |  time_pressure_cond)
+pairs(emm1, adjust = "holm") # all pairwise comparisons 
+H1 <- list(H1ac = c(5, rep(-1, 5)), # H1a & H1c 
+             H1b = c(-1, 5, rep(-1, 4)) # H1b
+             ) 
+contrast(emm1, H1, adjust = "holm") # check if holm method is specified globally or separately for both time_pressure_cond
+
+betas <- as.data.table(fixef(full_model), keep.rownames = TRUE)
 betas[, stim := levels(dt$stim)] # gsub("stim", "", V1)
 betas[, beta := exp(V2)/(1+exp(V2))]
 
