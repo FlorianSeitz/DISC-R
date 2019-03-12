@@ -4,7 +4,7 @@ library(data.table)
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 
-files <- list.files(path = "../../data/raw/categorization_exp_pretest/", pattern = "", full.names = TRUE)
+files <- list.files(path = "../../data/raw/categorization_exp_main/", pattern = "", full.names = TRUE)
 dt <- rbindlist(lapply(files, fread, fill = TRUE, colClasses = list("character" = c("stim", "color_presentation_order", "feature_presentation_order"))))
 
 # Makes stimuli start with 0
@@ -17,5 +17,8 @@ setnames(dt, old = c("V1", "V2", "V3"), new = c(paste0("feature", 1:3)))
 set.seed(432)
 dt[, subj_id := factor(subj_id, labels = replicate(length(unique(subj_id)), paste(sample(letters, 4), collapse = "")))]
 
-setcolorder(dt, c(4, 14:15, 5:7, 1:3, 8, 12, 13, 9:11))
-fwrite(dt, "../../data/processed/categorization_exp_pretest.csv")
+# Old or novel stimuli
+dt[, stim_type := ifelse(stim %in% unique(stim[block == "training"]), "old", "new")]
+
+setcolorder(dt, c(4, 14:15, 5:7, 17, 1:3, 8, 12, 13, 16, 9:11))
+fwrite(dt, "../../data/processed/categorization_exp_main.csv")

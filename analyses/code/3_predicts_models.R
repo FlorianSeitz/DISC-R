@@ -6,9 +6,9 @@ library(qpcR)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 source("~/cogscimodels/models/gcm/gcm_unidim.R", chdir = TRUE)
 
-dt <- fread("../../data/processed/categorization_exp_pretest.csv", key = "subj_id", colClasses = list("character" = "stim"))
-fitted_parm_gcm <- fread(input = "../../data/processed/categorization_pretest_fitted_parm_gcm.csv", key = "subj_id")
-fitted_parm_gcm_unidim <- fread(input = "../../data/processed/categorization_pretest_fitted_parm_gcm_unidim.csv", key = "subj_id")
+dt <- fread("../../data/processed/categorization_exp_main.csv", key = "subj_id", colClasses = list("character" = "stim"))
+fitted_parm_gcm <- fread(input = "../../data/processed/categorization_main_fitted_parm_gcm.csv", key = "subj_id")
+fitted_parm_gcm_unidim <- fread(input = "../../data/processed/categorization_main_fitted_parm_gcm_unidim.csv", key = "subj_id")
 
 predict_gcm <- function(data, metr, id, unidim = FALSE) {
   args <- list(formula = response ~ feature1 + feature2 + feature3, 
@@ -19,7 +19,7 @@ predict_gcm <- function(data, metr, id, unidim = FALSE) {
   } else {
     m <- do.call(gcm_unidim, c(args, fixed = list(unlist(fitted_parm_gcm_unidim[metric == metr & subj_id == id, -(1:2)]))))
   }
-  c(m$predict(), m$predict(newdata = data[block != "training"]))
+  c(m$predict(), m$predict(newdata = data[block != "training", ]))
 }
 
 # Predict for discrete and Minkowski model
