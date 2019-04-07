@@ -13,6 +13,18 @@ dt <- cbind(stim, dt)
 dt[, stim := paste0(V1, V2, V3)]
 setnames(dt, old = c("V1", "V2", "V3"), new = c(paste0("feature", 1:3)))
 
+# Checks if time limit is exceeded in > 50% of test trials for a given test stimulus
+valid_subj_ids <- dt[time_pressure_cond == TRUE & block == "test", .(perc_too_slow = mean(too_slow)), by = list(subj_id, stim)][, all(perc_too_slow <= .50), by = subj_id]$subj_id
+
+# Checks if log reaction time is below M-3SD of log reaction times of learning phase in > 50% of test trials for a given test stimulus
+log_times <- dt[time_pressure_cond == FALSE & block == "training" & time > 0, .(mean_log_learn = mean(log(time)),
+                                                                                sd_log_learn = sd(log(time))), by = list(subj_id)]
+log_times <- merge(dt[time_pressure_cond == FALSE & block == "test" & time > 0, .(log_test = log(time)), by = list(subj_id, stim)], log_times)
+valid_subj_ids <- c(valid_subj_ids, log_times[, .(perc_too_slow = mean(log_test < mean_log_learn - 3*sd_log_learn)), by = list(subj_id, stim)][, all(perc_too_slow <= .50), by = subj_id]$subj_id)
+
+# Drops invaid subj_ids
+dt <- dt[subj_id %in% valid_subj_ids, ]
+
 # Change participant ids to random alpha-numeric code
 set.seed(432)
 dt[, subj_id := factor(subj_id, labels = replicate(length(unique(subj_id)), paste(sample(letters, 4), collapse = "")))]
