@@ -6,6 +6,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the
 
 files <- list.files(path = "../../data/raw/categorization_exp_main/", pattern = "", full.names = TRUE)
 dt <- rbindlist(lapply(files, fread, fill = TRUE, colClasses = list("character" = c("stim", "color_presentation_order", "feature_presentation_order"))))
+demographics <- fread("../../data/raw/categorization_demographics_main/Categorization Experiment Demographics_April 8, 2019_05.10.csv")
 
 # Makes stimuli start with 0
 stim <- matrix(as.numeric(t(dt[, strsplit(as.character(stim), split = "")])), ncol = 3) - 1
@@ -24,6 +25,14 @@ valid_subj_ids <- c(valid_subj_ids, log_times[, .(perc_too_slow = mean(log_test 
 
 # Drops invaid subj_ids
 dt <- dt[subj_id %in% valid_subj_ids, ]
+
+# Participants who stated task was rather unclear or absolutely unclear
+invalid_subj_ids <- c(4, 9, 16, 32, 34, 40, 46, 54)
+dt <- dt[subj_id %in% invalid_subj_ids == FALSE, ]
+
+# Prepares demographics data
+demographics <- demographics[!1:2, !3:17]
+demographics[, subj_id := 1:nrow(demographics)]
 
 # Change participant ids to random alpha-numeric code
 set.seed(432)
