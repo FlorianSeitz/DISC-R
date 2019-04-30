@@ -12,43 +12,48 @@ dt <- dt[block == "test" & stim_type == "new", ]
 dt[, time_pressure_cond := as.factor(time_pressure_cond)]
 dt[, subj_id := as.factor(subj_id)]
 dt[, stim := factor(stim, labels = c("100", "003", "221", "231", "321", "331"))]
+dt[, test_stim_type := ifelse(stim == "100", "100", 
+                              ifelse(stim == "003", "003", "221-331"))]
 
 # 1. Computes generalized linear models
 # 1.1. With interaction time_pressure_cond*stim
-full_model <- glmer(response ~ time_pressure_cond * stim + (0 + stim|subj_id), data = dt, family = binomial) 
+# full_model <- glm(response ~ time_pressure_cond * stim, data = dt, family = binomial) 
+full_model <- glmer(response ~ time_pressure_cond * test_stim_type + (1|subj_id), data = dt, family = binomial) 
 summary(full_model)
+# TO DO: 1. ||, 2. random intercept (1|subj_id), 3. no random effects; 4. no fixed effects but (0 + stim|subj_id); 5. group stimuli (221, 231, 321, 331 together)
 
 # 1.2. Without interaction time_pressure_cond*stim
-restricted_model <- glmer(response ~ time_pressure_cond + stim + (0 + stim|subj_id), data = dt, family = binomial)
+# restricted_model <- glmer(response ~ time_pressure_cond + stim + (0 + stim|subj_id), data = dt, family = binomial)
+restricted_model <- glmer(response ~ time_pressure_cond + test_stim_type + (1|subj_id), data = dt, family = binomial) 
 summary(restricted_model)
 
 # 1.3. Tests the necessity of the interaction time_pressure_cond*stim
-# 1.3.1. ANOVA
-anova(full_model, restricted_model)
-
-# 1.3.2. Deviances
-getME(full_model, "devcomp")$cmp["dev"]
-getME(restricted_model, "devcomp")$cmp["dev"]
-
-# 1.3.2. AIC
+# 1.3.1. AIC: How much more likely is full_model relative to restricted_model?
 aics <- as.data.table(AIC(full_model, restricted_model), keep.rownames = TRUE)
 aics[, delta_AIC := AIC - min(AIC)] 
 aics[, weights := exp(-0.5*delta_AIC)/sum(exp(-0.5*delta_AIC))]
-aics[, weights[1]/weights[2]] # full_model is 99033 as likely as restricted_model
+aics[, weights[1]/weights[2]] # full_model is 116613.5 times as likely as restricted_model
+
+# 1.3.2. ANOVA
+anova(full_model, restricted_model)
 
 # 2. Pairwise comparisons
-emm1 <- emmeans(full_model, ~ stim |  time_pressure_cond)
+emm1 <- emmeans(full_model, ~ test_stim_type |  time_pressure_cond)
 pairs(emm1, adjust = "holm") # all pairwise comparisons 
 
-# 2.1. With time pressure
-H1 <- list(H1ac = c(5, rep(-1, 5)), # H1a & H1c 
-             H1b = c(-1, 5, rep(-1, 4)) # H1b
+# 2.1. Contrast coefficients
+H1 <- list(H1ac = c(2, rep(-1, 2)), # H1a & H1c
+           H1b = c(-1, 2, rep(-1, 1)) # H1b
            ) 
-contrast(emm1[7:12], H1, adjust = "holm") # check if holm method is specified globally or separately for both time_pressure_cond
+H2 <- list(H2a = c(2, rep(-1, 2))) # H2a
 
-# 2.2. Without time pressure
-H2 <- list(H2a = c(5, rep(-1, 5))) # H2a
-contrast(emm1[1:6], H2, adjust = "holm") # check if holm method is specified globally or separately for both time_pressure_cond
+contrast(emm1, list(H1, H2), adjust = "holm") # check if holm method is specified globally or separately for both time_pressure_cond
+
+# contrast(emm1[1:6], H2, adjust = "holm")
+# contrast(emm1[7:12], H1, adjust = "holm")
+
+
+
 
 # fixed_eff <- fixef(full_model)
 # betas <- as.data.table(fixed_eff[grepl("^stim|Intercept", names(fixed_eff))], keep.rownames = TRUE)
