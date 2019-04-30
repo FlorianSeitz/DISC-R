@@ -28,3 +28,7 @@ fitted_parm_gcm_unidim <- rbindlist(lapply(c("disc", "mink"), function(x) dt[, {
 fitted_parm_gcm_unidim[, metric := ifelse(metric == 1, "disc", "mink")]
 fwrite(fitted_parm_gcm_unidim, file = "../../data/processed/categorization_main_fitted_parm_gcm_unidim.csv")
 
+# TO DO: 
+# 1. install newest cogscimodels from github
+# 2. discount für multidim: take only last 100 trials 
+# 3. fit with c ranging to 10
