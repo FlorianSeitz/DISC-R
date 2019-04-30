@@ -1,4 +1,4 @@
-rm(list = ls(all = TRUE))
+# rm(list = ls(all = TRUE))
 library(data.table)
 library(cogsciutils)
 library(qpcR)
@@ -19,7 +19,7 @@ predict_gcm <- function(data, metr, id, unidim = FALSE) {
   } else {
     m <- do.call(gcm_unidim, c(args, fixed = list(unlist(fitted_parm_gcm_unidim[metric == metr & subj_id == id, -(1:2)]))))
   }
-  c(m$predict(), m$predict(newdata = data[block != "training", ]))
+  c(m$predict(), m$predict(newdata = data[block == "test", ]))
 }
 
 # Predict for discrete and Minkowski model
