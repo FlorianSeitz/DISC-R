@@ -7,3 +7,7 @@
 # 1. Change time pressure method
 # 2. Look for alternative multiple testing correction methods that are less conservative than Bonferroni
 
+#### Feedback Jörg
+# 1. Analyze reaction times
+# 2. Integrate idea of random choice
+# 3. present descriptive results (figure) first before making inferential tests
