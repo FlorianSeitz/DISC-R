@@ -9,11 +9,15 @@ source("3_predicts_models.R", chdir = TRUE)
 source("fig_setup.R")
 
 dt <- dt[block == "test" & stim_type == "new", ]
-dt[, time_pressure_cond := as.factor(time_pressure_cond)]
+dt[, time_pressure_cond := factor(time_pressure_cond)]
 dt[, subj_id := as.factor(subj_id)]
 dt[, stim := factor(stim, labels = c("100", "003", "221", "231", "321", "331"))]
 dt[, test_stim_type := ifelse(stim == "100", "100", 
                               ifelse(stim == "003", "003", "221-331"))]
+dt[, test_stim_type := factor(test_stim_type, labels = c("100", "003", "221-331"))]
+
+contrasts(dt$test_stim_type) <- "contr.sum"
+contrasts(dt$time_pressure_cond) <- "contr.sum"
 
 # 1. Computes generalized linear models
 # 1.1. With interaction time_pressure_cond*stim
@@ -22,6 +26,10 @@ full_model <- glmer(response ~ time_pressure_cond * test_stim_type + (1|subj_id)
 summary(full_model)
 # TO DO: 1. ||, 2. random intercept (1|subj_id), 3. no random effects; 4. no fixed effects but (0 + stim|subj_id); 5. group stimuli (221, 231, 321, 331 together)
 
+dt[, test_stim_type := relevel(test_stim_type, ref = "003")]
+contrasts(dt$test_stim_type) <- "contr.sum"
+full_model2 <- glmer(response ~ time_pressure_cond * test_stim_type + (1|subj_id), data = dt, family = binomial) 
+summary(full_model2)
 # 1.2. Without interaction time_pressure_cond*stim
 # restricted_model <- glmer(response ~ time_pressure_cond + stim + (0 + stim|subj_id), data = dt, family = binomial)
 restricted_model <- glmer(response ~ time_pressure_cond + test_stim_type + (1|subj_id), data = dt, family = binomial) 
@@ -35,7 +43,7 @@ aics[, weights := exp(-0.5*delta_AIC)/sum(exp(-0.5*delta_AIC))]
 aics[, weights[1]/weights[2]] # full_model is 116613.5 times as likely as restricted_model
 
 # 1.3.2. ANOVA
-anova(full_model, restricted_model)
+anova(restricted_model, full_model)
 
 # 2. Pairwise comparisons
 emm1 <- emmeans(full_model, ~ test_stim_type |  time_pressure_cond)
