@@ -6,7 +6,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the
 
 files <- list.files(path = "../../data/raw/categorization_exp_main/", pattern = "", full.names = TRUE)
 dt <- rbindlist(lapply(files, fread, fill = TRUE, colClasses = list("character" = c("stim", "color_presentation_order", "feature_presentation_order"))))
-demographics <- fread("../../data/raw/categorization_demographics_main/Categorization Experiment Demographics_April 8, 2019_05.10.csv")
+demographics <- fread("../../data/raw/categorization_demographics_main/Categorization Experiment Demographics_May 6, 2019_04.45.csv")
 
 # Makes stimuli start with 0
 stim <- matrix(as.numeric(t(dt[, strsplit(as.character(stim), split = "")])), ncol = 3) - 1
@@ -32,7 +32,7 @@ dt <- dt[subj_id %in% invalid_subj_ids == FALSE, ]
 
 # Prepares demographics data
 demographics <- demographics[!1:2, !3:17]
-demographics[, subj_id := 1:nrow(demographics)]
+demographics <- demographics[!grep("un", task_clear)]
 
 # Change participant ids to random alpha-numeric code
 set.seed(432)
@@ -43,3 +43,4 @@ dt[, stim_type := ifelse(stim %in% unique(stim[block == "training"]), "old", "ne
 
 setcolorder(dt, c(4, 14:15, 5:7, 17, 1:3, 8, 12, 13, 16, 9:11))
 fwrite(dt, "../../data/processed/categorization_exp_main.csv")
+fwrite(dt, "../../data/processed/categorization_dempographics_main.csv")
