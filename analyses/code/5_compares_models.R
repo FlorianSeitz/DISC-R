@@ -2,13 +2,15 @@
 library(gtools)
 library(RVAideMemoire)
 library(data.table)
+library(cogsciutils)
 
 # 0. Prepares data
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 dt <- fread("../../data/results/categorization_data_with_predictions.csv", 
             key = c("subj_id", "trial"))[fread("../../data/processed/categorization_exp_main.csv", 
-                                               select = c("subj_id", "trial", "block", "too_slow", "time_pressure_cond", "response"), 
-                                               key = c("subj_id", "trial"))]
+                                               select = c("subj_id", "trial", "block", "too_slow", "time_pressure_cond", "response", "stim", "stim_type"), 
+                                               key = c("subj_id", "trial"),
+                                               colClasses = list("character" = "stim"))]
 
 # 0.1. Saves names of the different models
 cols <- colnames(dt)[grepl(pattern = "^pred", x = colnames(dt))]
@@ -16,8 +18,9 @@ out_cols <- substring(cols, regexpr("_", cols) + 1)
 
 # 1. Aggregate model comparison (H1d & H2b)
 # 1.1. Calculates log likelihoods
-ll_test_agg <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id)]
-ll_test_agg <- ll_test_agg[, lapply(.SD, median), .SDcols = cols, by = time_pressure_cond]
+ll_test <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id)]
+
+ll_test_agg <- ll_test[, lapply(.SD, median), .SDcols = cols, by = time_pressure_cond]
 setnames(ll_test_agg, cols, out_cols)
 
 # 1.2. Calculates best fitting model
@@ -49,13 +52,12 @@ mape <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {MAPE(ob
 setnames(mape, cols, out_cols)
 mape[time_pressure_cond == TRUE, names(.SD)[which.min(.SD)], .SDcols = 3:7, by = subj_id][, table(V1)]
 
-?argmax <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {mean(choicerule(x = x, type = "argmax") == response)}), .SDcols = cols, by = list(time_pressure_cond)]
+argmax <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {mean(choicerule(x = x, type = "argmax") == response)}), .SDcols = cols, by = list(time_pressure_cond)]
 setnames(argmax, cols, out_cols)
 
 # 2. Individual model comparison
 # 2.1. Testset
 # 2.1.1. Calculates log likelihoods
-ll_test <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', na.rm = TRUE, options = list(response = "discrete"))}), .SDcols = cols, by = list(subj_id, time_pressure_cond)]
 setnames(ll_test, cols, out_cols)
 
 # 2.1.2. Calculates best fitting model
@@ -135,6 +137,18 @@ binom.test(x = model_distr_wide[time_pressure_cond == FALSE, mink],
 # weights_above_90_exp <- weights_exp[, base::max(.SD) >= .90, by = list(time_pressure_cond, subj_id)][, V1]
 # model_distr_exp <- ll_test_exp[weights_above_90_exp, .N, by = list(time_pressure_cond, best_fitting_model)]
 
+# 2.11. Log likelihoods per participant and stimulus
+ll_test_stim <- dt[block == "test" & too_slow == FALSE & stim_type == "new", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id, stim)]
+setnames(ll_test_stim, cols, out_cols)
+ll_test_stim[, best_fitting_model := names(which.max(.SD)), by = list(subj_id, time_pressure_cond, stim)]
+ll_test_stim[, table(time_pressure_cond, best_fitting_model, stim)]
+
+weights_stim <- ll_test_stim[, exp(.SD - max(.SD)), by = list(subj_id, time_pressure_cond, stim), .SDcols = out_cols]
+weights_stim[, (out_cols) := round(.SD/ rowSums(.SD), 2), by = list(subj_id, time_pressure_cond, stim)]
+
+weights_above_90_stim <- weights_stim[, base::max(.SD) >= .90, by = list(time_pressure_cond, subj_id, stim)][, V1]
+ll_test_stim[weights_above_90_stim, table(time_pressure_cond, best_fitting_model, stim)]
+
 # 2.2. Learningset (only for sanity check)
 # 2.2.1. Calculates log likelihoods
 ll_learn <- dt[block == "training", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), discount = 8)}), .SDcols = cols, by = subj_id]
@@ -145,7 +159,4 @@ AIC <- ll_learn[, -2 * .SD + 2 * c(5, 5, 2, 2), by = subj_id]
 AIC[, random := dt[block == "training", .(V1 = -2 * gof(obs = response, pred = rep(0.5, length(response)), type = "loglik", response = 'disc')), by = subj_id][, V1]]
 AIC[, round(disc - mink, 1) == 0]
 
-cat("\n Generated ll_test, weights, ll_learn, and AIC \n")
-
-
-ll_test_agg <- dt[, lapply(.SD, function(x) {mean((response - x)^2, na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id)]
+cat("\n Generated ll_test, ll_test_stim, ll_learn, and AIC \n")
