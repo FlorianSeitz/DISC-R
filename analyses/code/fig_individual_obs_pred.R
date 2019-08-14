@@ -22,8 +22,7 @@ dt_agg <- dt[!is.na(response), .(response = mean(response),
 ggplot(dt_agg, aes(x = stim, y = response)) +
   geom_point(size = 3, shape = 21, aes(fill = time_pressure_cond)) +
   geom_errorbar(aes(ymin = response - se, ymax = response + se, fill = time_pressure_cond), size = 0.5, width = .5) +
-  geom_point(aes(y = pred_disc), shape = 21) + 
-  geom_point(aes(y = pred_mink), shape = 22) + 
+  geom_point(data = melt(dt_agg, measure.vars = c("pred_mink", "pred_disc")), aes(y = value, shape = variable), size = 3) + 
   ylim(0, 1) +
   facet_wrap(~subj_id, scales = "free_x")
 
@@ -34,7 +33,7 @@ dt_agg_agg <- dt_agg[, .(response = mean(response),
 ggplot(dt_agg_agg, aes(x = stim, y = response)) +
   geom_point(size = 3, shape = 21, aes(fill = time_pressure_cond)) +
   # geom_errorbar(aes(ymin = response - se, ymax = response + se, fill = time_pressure_cond), size = 0.5, width = .5) +
-  geom_point(aes(y = pred_disc), shape = 20, size = 3) + 
+  geom_point(aes(y = pred_disc), shape = 21, size = 3) + 
   geom_point(aes(y = pred_mink), shape = 22, size = 3) + 
   ylim(0, 1) +
   facet_wrap(~time_pressure_cond)
