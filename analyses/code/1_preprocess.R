@@ -43,4 +43,4 @@ dt[, stim_type := ifelse(stim %in% unique(stim[block == "training"]), "old", "ne
 
 setcolorder(dt, c(4, 14:15, 5:7, 17, 1:3, 8, 12, 13, 16, 9:11))
 fwrite(dt, "../../data/processed/categorization_exp_main.csv")
-fwrite(dt, "../../data/processed/categorization_dempographics_main.csv")
+fwrite(demographics, "../../data/processed/categorization_dempographics_main.csv")

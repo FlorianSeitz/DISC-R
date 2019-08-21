@@ -52,3 +52,6 @@ fwrite(fitted_parm_gcm_test, file = "../../data/processed/categorization_main_fi
 fitted_parm_gcm_unidim_test <- rbindlist(lapply(c("disc", "mink"), function(x) dt[, {print(.GRP); fit_ll(.SD, metr = x, id = unique(subj_id), unidim = TRUE)}, by = subj_id]), id = "metric")
 fitted_parm_gcm_unidim_test[, metric := ifelse(metric == 1, "disc", "mink")]
 fwrite(fitted_parm_gcm_unidim_test, file = "../../data/processed/categorization_main_fitted_parm_gcm_unidim_test.csv")
+
+# Fit Parameters of discrete-threshold model 
+fitted_parm_dtm_test <- rbindlist(lapply(c("t"), function(x) dt[subj_id == "mqon", {print(.GRP); fit_ll(.SD, metr = x)}]), id = "metric")
