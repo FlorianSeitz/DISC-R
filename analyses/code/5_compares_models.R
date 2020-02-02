@@ -5,6 +5,7 @@ library(RVAideMemoire)
 library(data.table)
 library(cogsciutils)
 library(splitstackshape)
+library(esc)
 set.seed(932)
 
 # 0. Prepares data
@@ -19,11 +20,10 @@ dt <- fread("../../data/results/categorization_data_with_predictions.csv",
 # 0.1. Saves names of the different models
 cols <- colnames(dt)[grepl(pattern = "^pred", x = colnames(dt))]
 out_cols <- substring(cols, regexpr("_", cols) + 1)
+ll_test <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id)]
 
 # 1. Aggregate model comparison (H1d & H2b)
 # 1.1. Calculates log likelihoods
-ll_test <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id)]
-
 ll_test_agg <- ll_test[, lapply(.SD, median), .SDcols = cols, by = time_pressure_cond]
 setnames(ll_test_agg, cols, out_cols)
 
@@ -50,6 +50,7 @@ model_comparisons <- rbindlist(apply(model_pairs, 1, function(x) {
 model_comparisons[is.na(model_comparisons$m1_better_m2), m1_better_m2 := 0]
 model_comparisons <- model_comparisons[, .(sum = sum(m1_better_m2)), by = list(time_pressure_cond, m1)]
 setkey(model_comparisons, time_pressure_cond, sum)
+cat("\n Generated ll_test_agg and model_comparisons \n")
 
 # 1.5. Additional fit indices
 dt_long <- melt(dt, measure.vars = list(grep("pred", colnames(dt))), variable.name = "model", value.name = "pred")
@@ -66,20 +67,6 @@ ll_ind <- dt_long[block == "test" & too_slow == FALSE, .(ll = gof(obs = response
                                                                                                                                      Md_LL = median(ll),
                                                                                                                                      SD_LL = sd(ll)), by = list(time_pressure_cond, model)]
 
-paper_table_fit <- merge(ll_ind, add_ind)
-paper_table_fit[, Dimensionality := ifelse(grepl("unidim", model), "Unidimensional", "Multidimensional")]
-paper_table_fit[, Metric := ifelse(grepl("disc", model), "Discrete", "Minkowski")]
-paper_table_fit[model == "random", c("Dimensionality", "Metric") := "Random"]
-paper_table_fit <- dcast.data.table(paper_table_fit, formula = ... ~ time_pressure_cond, value.var = list("M_LL", "Md_LL", "SD_LL", "mape", "argmax", "mse"), drop = TRUE)
-paper_table_fit <- paper_table_fit[, c(2:3, seq(5, 15, 2), seq(4, 14, 2))]
-
-apa_table(paper_table_fit,
-          align = c(rep("c", ncol(paper_table_fit))),
-          caption = "Descriptive model fit measures",
-          note = "Different fit measures for the different models separately for the conditions with and without time pressure. 
-          Fit measures are the following: M(LL) = mean log likelihood, Md(LL) = median log likelihood, SD(LL) = standard deviation of log likelihood, MAPE = mean absolute percentage error, arg max = mean accuracy based on the arg max choice rule, MSE = mean--square error.",
-          col_spanners = list("Time Pressure" = c(3, 8), "No Time Pressure" = c(9, 13)))
-
 # 2. Individual model comparison
 # 2.1. Testset
 # 2.1.1. Calculates log likelihoods
@@ -90,7 +77,7 @@ ll_test[, best_fitting_model := names(which.max(.SD)), by = list(subj_id, time_p
 
 # 2.1.3. Calculates weights (equal to AIC weights, because no free parameters)
 weights <- ll_test[, exp(.SD - max(.SD)), by = list(subj_id, time_pressure_cond), .SDcols = out_cols]
-weights[, (out_cols) := round(.SD/ rowSums(.SD), 2), by = list(subj_id, time_pressure_cond)]
+weights[, (out_cols) := round(.SD/ rowSums(.SD), 4), by = list(subj_id, time_pressure_cond)]
 
 # 2.1.4. Calculates distribution of best fitting models for each time pressure condition
 weights_above_90 <- weights[, base::max(.SD) >= .90, by = list(time_pressure_cond, subj_id)][, V1]
@@ -106,7 +93,10 @@ model_distr[, chisq.test(N), by = time_pressure_cond]
 model_distr_short <- rbind(model_distr[!grepl("disc", best_fitting_model)], model_distr[grepl("disc", best_fitting_model), .(best_fitting_model = "disc",
                                                                                                                              N = sum(N)), by = time_pressure_cond])
 model_distr_short[time_pressure_cond == TRUE, multinomial.multcomp(N, p.method = "holm")]
-model_distr[time_pressure_cond == FALSE, multinomial.multcomp(N, p.method = "holm")]
+model_distr_short[time_pressure_cond == FALSE, multinomial.multcomp(N, p.method = "holm")]
+
+esc_bin_prop(prop1event = 17/30, grp1n = 30, prop2event = 3/30, grp2n = 30, es.type = "or")
+esc_bin_prop(prop1event = 15/31, grp1n = 31, prop2event = 9/31, grp2n = 31, es.type = "or")
 
 # 2.1.7. Calculates pairwise comparisons between models (evidence ratio, see Wagenmakers & Farrell, 2004, p.194) (H1f & H2c)
 model_pairs <- permutations(n = 5, r = 2, v = 3:7)
@@ -127,6 +117,8 @@ setkey(model_comparisons_individual, time_pressure_cond, sum)
 # 2.1.8. Fisher's exact test (H3a, H3b)
 model_distr_wide <- dcast(model_distr, time_pressure_cond ~ best_fitting_model)
 fisher.test(model_distr_wide[, c(2, 4:6)])
+
+fisher.test(model_distr_wide[, c(2, 4)])
 
 # 2.1.9. Pairwise comparisons Fisher's exact test (H3a, H3b)
 disc_distr <- model_distr[grep("disc", best_fitting_model), .(disc = sum(N)), by = time_pressure_cond]
@@ -149,77 +141,13 @@ random_distr[, non_random := c(31, 30) - random]
 random_distr <- rbind(setDT(expandRows(random_distr, "random"))[, c("model", "model_used") := list("random", 1), ][, c(1, 3, 4)],
                       setDT(expandRows(random_distr, "non_random"))[, c("model", "model_used") := list("random", 0), ][, c(1, 3, 4)])
 
-fisher.bintest(model_used ~ time_pressure_cond + model, data = rbind(disc_distr, mink_distr, mink_uni_distr, random_distr), p.method = "holm")
+fisher.bintest(model_used ~ time_pressure_cond + model, data = rbind(disc_distr, mink_distr, random_distr), p.method = "holm")
 
-# fisher.multcomp(as.matrix(model_distr_wide[, c(2, 4:6)]), p.method = "holm")
+esc_bin_prop(prop1event = 3/30, grp1n = 30, prop2event = 15/31, grp2n = 31, es.type = "or")
+esc_bin_prop(prop1event = 9/31, grp1n = 31, prop2event = 2/30, grp2n = 30, es.type = "or")
 
-binom.test(x = model_distr_wide[time_pressure_cond == TRUE, disc], 
-           n = dt[time_pressure_cond == TRUE, length(unique(subj_id))], 
-           p = model_distr_wide[time_pressure_cond == FALSE, disc]/dt[time_pressure_cond == FALSE, length(unique(subj_id))], 
-           alternative = "greater")
-binom.test(x = model_distr_wide[time_pressure_cond == FALSE, mink], 
-           n = dt[time_pressure_cond == FALSE, length(unique(subj_id))], 
-           p = model_distr_wide[time_pressure_cond == TRUE, mink]/dt[time_pressure_cond == TRUE, length(unique(subj_id))], 
-           alternative = "greater")
-
-# 2.10. Rule-based model (exploratory analyses)
-# Fitting on complete test phase data
-rule_based_model <- data.table()
-rule_based_model <- rbindlist(lapply(unique(dt$subj_id), function(x) {
-  reg <- dt[block == "test" & subj_id == x, lm(response ~ feature1 + feature2 + feature3)]
-  rule_based_model_temp <- data.table(subj_id = x, predictor = names(reg$coefficients), beta = reg$coefficients, r2 = summary(reg)$r.squared)
-  rule_based_model <- rbind(rule_based_model, rule_based_model_temp)
-}))
-
-dt[block == "test", pred_lin_mod := predict(lm(response ~ feature1 + feature2 + feature3), newdata = .SD), .SDcols = paste0("feature", 1:3), by = subj_id]
-dt[pred_lin_mod > 1, pred_lin_mod := 1]
-dt[pred_lin_mod < 0, pred_lin_mod := 0]
-cols <- colnames(dt)[grepl(pattern = "^pred", x = colnames(dt))]
-out_cols <- substring(cols, regexpr("_", cols) + 1)
-ll_test_exp <- dt[block == "test" & too_slow == FALSE,
-                  lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', na.rm = TRUE, options = list(response = "discrete"))}),
-                  .SDcols = cols,
-                  by = list(time_pressure_cond, subj_id)]
-setnames(ll_test_exp, cols, out_cols)
-ll_test_exp[, best_fitting_model := names(which.max(.SD)), by = list(subj_id, time_pressure_cond)]
-weights_exp <- ll_test_exp[, exp(.SD - max(.SD)), by = list(subj_id, time_pressure_cond), .SDcols = out_cols]
-weights_exp[, (out_cols) := round(.SD/ rowSums(.SD), 2), by = list(subj_id, time_pressure_cond)]
-weights_above_90_exp <- weights_exp[, base::max(.SD) >= .90, by = list(time_pressure_cond, subj_id)][, V1]
-model_distr_exp <- ll_test_exp[weights_above_90_exp, .N, by = list(time_pressure_cond, best_fitting_model)]
-
-# Fitting on random half of test phase data and predicting the other half
-rule_based_model_half <- data.table()
-dt_half <- data.table()
-for(x in unique(dt$subj_id)) {
-  subj_dt <- dt[block == "test" & subj_id == x, ]
-  data_to_fit <- stratified(subj_dt, group = "stim", size = 7)
-  data_to_predict <- subj_dt[!data_to_fit]
-  
-  # Fitting
-  reg <- data_to_fit[, lm(response ~ feature1 + feature2 + feature3)]
-  rule_based_model_half_temp <- data.table(subj_id = x, predictor = names(reg$coefficients), beta = reg$coefficients, r2 = summary(reg)$r.squared)
-  rule_based_model_half <- rbind(rule_based_model_half, rule_based_model_half_temp)
-  
-  # Predicting
-  data_to_predict[, pred_lin_mod := predict(object = reg, newdata = .SD)]
-  dt_half <- rbind(dt_half, data_to_predict)
-}
-
-dt_half[pred_lin_mod > 1, pred_lin_mod := 1]
-dt_half[pred_lin_mod < 0, pred_lin_mod := 0]
-ll_test_exp_half <- dt_half[block == "test" & too_slow == FALSE,
-                  lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', na.rm = TRUE, options = list(response = "discrete"))}),
-                  .SDcols = cols,
-                  by = list(time_pressure_cond, subj_id)]
-setnames(ll_test_exp_half, cols, out_cols)
-ll_test_exp_half[, best_fitting_model := names(which.max(.SD)), by = list(subj_id, time_pressure_cond)]
-weights_exp_half <- ll_test_exp_half[, exp(.SD - max(.SD)), by = list(subj_id, time_pressure_cond), .SDcols = out_cols]
-weights_exp_half[, (out_cols) := round(.SD/ rowSums(.SD), 2), by = list(subj_id, time_pressure_cond)]
-weights_above_90_exp_half <- weights_exp_half[, base::max(.SD) >= .90, by = list(time_pressure_cond, subj_id)][, V1]
-model_distr_exp_half <- ll_test_exp_half[weights_above_90_exp_half, .N, by = list(time_pressure_cond, best_fitting_model)]
-
-# 2.11. Log likelihoods per participant and stimulus
-ll_test_stim <- dt[block == "test" & too_slow == FALSE & stim_type == "new", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id, stim)]
+# 2.12. Log likelihoods per participant and stimulus
+ll_test_stim <- dt[block == "test" & too_slow == FALSE & stim_type == "new", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id, stim)]
 setnames(ll_test_stim, cols, out_cols)
 ll_test_stim[, best_fitting_model := names(which.max(.SD)), by = list(subj_id, time_pressure_cond, stim)]
 ll_test_stim[, table(time_pressure_cond, best_fitting_model, stim)]
@@ -232,14 +160,12 @@ ll_test_stim[weights_above_90_stim, table(time_pressure_cond, best_fitting_model
 
 # 2.2. Learningset (only for sanity check)
 # 2.2.1. Calculates log likelihoods
-ll_learn <- dt[block == "training", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), discount = 8)}), .SDcols = cols, by = subj_id]
+ll_learn <- dt[block == "training", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", options = list(response = "discrete"), discount = 8)}), .SDcols = cols, by = subj_id]
 setnames(ll_learn, cols, out_cols)
 
 # 2.2.2. Calculate AICs for learning set
 AIC <- ll_learn[, -2 * .SD + 2 * c(5, 5, 2, 2), by = subj_id]
-AIC[, random := dt[block == "training", .(V1 = -2 * gof(obs = response, pred = rep(0.5, length(response)), type = "loglik", response = 'disc')), by = subj_id][, V1]]
+AIC[, random := dt[block == "training", .(V1 = -2 * gof(obs = response, pred = rep(0.5, length(response)), type = "loglik", options = list(response = 'disc'))), by = subj_id][, V1]]
 AIC[, round(disc - mink, 1) == 0]
 
 cat("\n Generated ll_test, ll_test_stim, ll_learn, and AIC \n")
-
-# papaya Paket: apa_table
