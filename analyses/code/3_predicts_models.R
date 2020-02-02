@@ -34,3 +34,11 @@ dt[, pred_mink_unidim := predict_gcm(data = .SD, metr = "mink", id = unique(subj
 dt[, pred_random := 0.5]
 fwrite(dt[, c("subj_id", "trial", grep("^pred", names(dt), value = TRUE)), with = FALSE], "../../data/results/categorization_data_with_predictions.csv")
 cat("\n Loaded dt with predictions \n")
+
+# Explorative analyses: discrete threshold model
+fitted_parm_gcm <- fread(input = "../../data/processed/categorization_main_fitted_parm_dtm_test.csv", key = "subj_id")
+dt[, pred_disc_threshold := predict_gcm(data = .SD, metr = "threshold", id = unique(subj_id)), by = subj_id]
+
+fitted_parm_gcm_unidim <- fread(input = "../../data/processed/categorization_main_fitted_parm_dtm_unidim_test.csv", key = "subj_id")
+dt[, pred_disc_threshold_unidim := predict_gcm(data = .SD, metr = "threshold", id = unique(subj_id), unidim = TRUE), by = subj_id]
+fwrite(dt[, c("subj_id", "trial", grep("^pred", names(dt), value = TRUE)), with = FALSE], "../../data/results/categorization_data_with_predictions_exploratory.csv")
