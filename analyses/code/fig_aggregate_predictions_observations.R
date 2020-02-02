@@ -23,25 +23,30 @@ meds[dimensionality == "UNI" & metric == "DISC", nudge := ifelse(max(med) > 0.5,
 
 ggplot(sim_mod_pred, aes(x = as.numeric(metric), y = value)) +
   geom_label(data = meds, aes(x = as.numeric(metric) + dodge, y = med + nudge, label = dim, color = metric), label.size = 0) +
-  geom_violin(aes(linetype = dimensionality, color = metric), size = 1) +
+  geom_violin(aes(linetype = dimensionality, color = metric), size = 0.75) +
   geom_point(data = meds, aes(y = med, shape = dimensionality, color = metric), position = position_dodge(width = 0.9), size = 2, stroke = 1.3, fill = "white") +
   geom_hline(yintercept = 0.5, linetype = 2) +
-  stat_summary(geom = "point", data = dt, aes(x = 0, y = response, fill = time_pressure_cond), size = 3, shape = 21) +
   stat_summary(geom = "errorbar", data = dt, aes(x = 0, y = response, fill = time_pressure_cond), size = 0.5, width = .5) +
+  stat_summary(geom = "point", data = dt, aes(x = 0, y = response, fill = time_pressure_cond), size = 3, shape = 21) +
   ylim(0, 1) +
   xlab("Model x stimulus ID") +
   ylab("Categorization probability for category A") +
-  ggtitle("Model predictions for test stimuli") +
+  # ggtitle("Model predictions for test stimuli") +
   theme(axis.ticks.x = element_blank(),
-        axis.text.x = element_blank()) +
-  scale_shape_manual(values = c(22, 24)) +
-  scale_color_grey(end = 0.6) +
+        axis.text.x = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  scale_shape_manual(values = c(22, 24), labels = c("MULTI-MINK", "UNI-MINK")) +
+  scale_linetype_manual(values = c(1, 42), labels = c("MULTI-MINK", "UNI-MINK")) +
+  scale_color_manual(values = grey(c(.3, .6)), labels = c("MULTI-DISC", "UNI-DISC")) +
+  # scale_color_grey(end = 0.6) +
+  scale_fill_manual(values = c("black", "white")) +
   labs(fill = "time pressure") +
   # scale_color_discrete(name = "Model", breaks = c("GCM.Attr", "GCM.Eucl", "Unidim_1", "Unidim_2", "Unidim_3"),
   #                      labels = c("GCM_DISC", "GCM_MINK", "UNIDIM_1", "UNIDIM_2", "UNIDIM_3")) +
   facet_wrap(~stim, scales = "free_x") +
-  guides(color = guide_legend(order = 1),
-         linetype = guide_legend(order = 2),
-         shape = guide_legend(order = 2),
-         fill = guide_legend(order = 3))
-ggsave("../../output/images/aggregate_predictions_observations.jpg")
+  guides(color = guide_legend(order = 3, title = element_blank(), override.aes = list(shape = c(22, 24), linetype = c(1, 42), color = grey(c(.6 , .6)))),
+         linetype = guide_legend(order = 2, title = "Models", override.aes = list(color = grey(c(.3 , .3)))),
+         shape = guide_legend(order = 2, title = "Models"),
+         fill = guide_legend(order = 1, title = "Time pressure"))
+ggsave("../../output/images/aggregate_predictions_observations.png")
