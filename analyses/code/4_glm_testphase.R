@@ -9,7 +9,7 @@ source("3_predicts_models.R", chdir = TRUE)
 source("fig_setup.R")
 
 dt <- dt[block == "test" & stim_type == "new", ]
-dt[, time_pressure_cond := factor(time_pressure_cond)]
+dt[, time_pressure_cond := factor(time_pressure_cond, levels = c(TRUE, FALSE), labels = c(TRUE, FALSE))]
 dt[, subj_id := as.factor(subj_id)]
 dt[, stim := factor(stim, labels = c("100", "003", "221", "231", "321", "331"))]
 dt[, test_stim_type := ifelse(stim == "100", "100", 
@@ -40,7 +40,7 @@ summary(restricted_model)
 aics <- as.data.table(AIC(full_model, restricted_model), keep.rownames = TRUE)
 aics[, delta_AIC := AIC - min(AIC)] 
 aics[, weights := exp(-0.5*delta_AIC)/sum(exp(-0.5*delta_AIC))]
-aics[, weights[1]/weights[2]] # full_model is 116613.5 times as likely as restricted_model
+aics[, weights[1]/weights[2]]
 
 # 1.3.2. ANOVA
 anova(restricted_model, full_model)
@@ -55,7 +55,7 @@ H1 <- list(H1ac = c(2, rep(-1, 2)), # H1a & H1c
            ) 
 H2 <- list(H2a = c(2, rep(-1, 2))) # H2a
 
-contrast(emm1, list(H1, H2), adjust = "holm") # check if holm method is specified globally or separately for both time_pressure_cond
+contrast(emm1, list(H1, H2), adjust = "holm", type = "response") # check if holm method is specified globally or separately for both time_pressure_cond
 
 # contrast(emm1[1:6], H2, adjust = "holm")
 # contrast(emm1[7:12], H1, adjust = "holm")
