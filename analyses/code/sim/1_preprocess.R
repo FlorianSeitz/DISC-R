@@ -8,11 +8,15 @@ files <- list.files(path = "../../../data/raw/similarity_exp_main/", pattern = "
 dt <- rbindlist(lapply(files, fread, fill = TRUE, colClasses = list("character" = c("type", "color_presentation_order", "shape_presentation_order"))))
 demographics <- fread("../../../data/raw/similarity_demographics_main/Similarity Experiment Demographics_January 21, 2020_03.55.csv")
 
-# # Makes stimuli start with 0
-# stim <- matrix(as.numeric(t(dt[, strsplit(as.character(stim), split = "")])), ncol = 3) - 1
-# dt <- cbind(stim, dt)
-# dt[, stim := paste0(V1, V2, V3)]
-# setnames(dt, old = c("V1", "V2", "V3"), new = c(paste0("feature", 1:3)))
+# Makes stimuli start with 0
+stim_left <- matrix(as.numeric(t(dt[, strsplit(as.character(stim_left), split = "")])), ncol = 3) - 1
+stim_right <- matrix(as.numeric(t(dt[, strsplit(as.character(stim_right), split = "")])), ncol = 3) - 1
+dt <- cbind(stim_right, dt)
+dt[, stim_right := paste0(V1, V2, V3)]
+setnames(dt, old = c("V1", "V2", "V3"), new = c(paste0("feature", 1:3, "_r")))
+dt <- cbind(stim_left, dt)
+dt[, stim_left := paste0(V1, V2, V3)]
+setnames(dt, old = c("V1", "V2", "V3"), new = c(paste0("feature", 1:3, "_l")))
 
 # Time pressure: Checks if the time limit is exceeded in more than 50% of the test trials for any given stimulus pair type.
 valid_subj_ids <- rbind(dt[time_pressure_first == TRUE & block == "test_1", ],
@@ -45,6 +49,6 @@ dt[, subj_id := factor(subj_id, labels = replicate(length(unique(subj_id)), past
 # Old or novel stimuli
 dt[, stim_type := ifelse(stim %in% unique(stim[block == "training"]), "old", "new")]
 
-setcolorder(dt, c(4, 14:15, 5:7, 17, 1:3, 8, 12, 13, 16, 9:11))
-fwrite(dt, "../../data/processed/categorization_exp_main.csv")
-fwrite(demographics, "../../data/processed/categorization_dempographics_main.csv")
+# setcolorder(dt, c(4, 14:15, 5:7, 17, 1:3, 8, 12, 13, 16, 9:11))
+fwrite(dt, "../../../data/processed/similarity_exp_main.csv")
+fwrite(demographics, "../../../data/processed/similarity_demographics_main.csv")
