@@ -60,4 +60,4 @@ ggplot(dt_unidim[parameter != "w2"], aes(x = parameter, y = N)) +
   facet_grid(~metric)
   # ggtitle("Parameter estimates test phase: unidimensional GCM") + 
   # theme(plot.title = element_text(hjust = 0.5))
-ggsave("../../output/images/parameter_estimates_unidim.png")
+ggsave("../../output/images/parameter_estimates_unidim.jpg")

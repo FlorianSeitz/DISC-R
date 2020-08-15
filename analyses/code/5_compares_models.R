@@ -3,7 +3,8 @@ rm(list = ls(all = TRUE))
 library(gtools)
 library(RVAideMemoire)
 library(data.table)
-library(cogsciutils)
+# library(cogsciutils)
+library(cognitiveutils)
 library(splitstackshape)
 library(esc)
 set.seed(932)
@@ -20,7 +21,7 @@ dt <- fread("../../data/results/categorization_data_with_predictions.csv",
 # 0.1. Saves names of the different models
 cols <- colnames(dt)[grepl(pattern = "^pred", x = colnames(dt))]
 out_cols <- substring(cols, regexpr("_", cols) + 1)
-ll_test <- dt[block == "test" & too_slow == FALSE, lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id)]
+ll_test <- dt[block == "test" & too_slow == FALSE & stim_type == "new", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id)]
 
 # 1. Aggregate model comparison (H1d & H2b)
 # 1.1. Calculates log likelihoods
@@ -55,10 +56,10 @@ cat("\n Generated ll_test_agg and model_comparisons \n")
 # 1.5. Additional fit indices
 dt_long <- melt(dt, measure.vars = list(grep("pred", colnames(dt))), variable.name = "model", value.name = "pred")
 levels(dt_long$model) <- out_cols
-add_ind <- dt_long[block == "test" & too_slow == FALSE, .(mape = MAPE(obs = response, pred = pred, response = 'disc', discount = 0),
+add_ind <- dt_long[block == "test" & too_slow == FALSE & stim_type == "new", .(mape = MAPE(obs = response, pred = pred, response = 'disc', discount = 0),
                                                           argmax = mean(choicerule(x = pred, type = "argmax") == response),
                                                           mse = MSE(obs = response, pred = pred, response = 'disc', discount = 0)), by = list(time_pressure_cond, model)]
-ll_ind <- dt_long[block == "test" & too_slow == FALSE, .(ll = gof(obs = response, 
+ll_ind <- dt_long[block == "test" & too_slow == FALSE & stim_type == "new", .(ll = gof(obs = response, 
                                                                   pred = pred, 
                                                                   type = "loglik", 
                                                                   response = 'disc', 
@@ -141,10 +142,10 @@ random_distr[, non_random := c(31, 30) - random]
 random_distr <- rbind(setDT(expandRows(random_distr, "random"))[, c("model", "model_used") := list("random", 1), ][, c(1, 3, 4)],
                       setDT(expandRows(random_distr, "non_random"))[, c("model", "model_used") := list("random", 0), ][, c(1, 3, 4)])
 
-fisher.bintest(model_used ~ time_pressure_cond + model, data = rbind(disc_distr, mink_distr, random_distr), p.method = "holm")
+fisher.bintest(model_used ~ time_pressure_cond + model, data = rbind(mink_distr, disc_distr), p.method = "holm")
 
-esc_bin_prop(prop1event = 3/30, grp1n = 30, prop2event = 15/31, grp2n = 31, es.type = "or")
-esc_bin_prop(prop1event = 9/31, grp1n = 31, prop2event = 2/30, grp2n = 30, es.type = "or")
+esc_bin_prop(prop1event = 4/30, grp1n = 30, prop2event = 1/31, grp2n = 31, es.type = "or")
+esc_bin_prop(prop1event = 8/31, grp1n = 31, prop2event = 5/30, grp2n = 30, es.type = "or")
 
 # 2.12. Log likelihoods per participant and stimulus
 ll_test_stim <- dt[block == "test" & too_slow == FALSE & stim_type == "new", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id, stim)]

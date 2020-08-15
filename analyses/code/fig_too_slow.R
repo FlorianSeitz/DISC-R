@@ -4,7 +4,7 @@ library(data.table)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 source("fig_setup.R")
 
-dat <- fread("../../data/processed/categorization_exp_pretest.csv", colClasses = list("character" = "stim"))
+dat <- fread("../../data/processed/categorization_exp_main.csv", colClasses = list("character" = "stim"))
 
 dat <- dat[block != "training"]
 
