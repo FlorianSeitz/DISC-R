@@ -1,18 +1,18 @@
 rm(list = ls(all = TRUE))
-library(R6)
-library(data.table)
+pacman::p_load(data.table, R6, qpcR)
 library(cogscimodels)
 library(cogsciutils)
-library(qpcR)
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 source("~/cogscimodels/R/cogscimodel-class.R", chdir = TRUE)
 source("~/cogscimodels/R/gcm.R", chdir = TRUE)
 source("~/cogscimodels/R/gcm_unidim.R", chdir = TRUE)
+devtools::load_all("~/cogscimodels/")
+devtools::load_all("~/cogsciutils/")
 
 dt <- fread("../../data/processed/categorization_exp_main.csv", key = "subj_id", colClasses = list("character" = "stim"))
-fitted_parm_gcm <- fread(input = "../../data/processed/categorization_main_fitted_parm_gcm.csv", key = "subj_id")
-fitted_parm_gcm_unidim <- fread(input = "../../data/processed/categorization_main_fitted_parm_gcm_unidim.csv", key = "subj_id")
+fitted_parm_gcm <- fread(input = "../../data/processed/categorization_main_fitted_parm_gcm_train2.csv", key = "subj_id")
+fitted_parm_gcm_unidim <- fread(input = "../../data/processed/categorization_main_fitted_parm_gcm_unidim_train2.csv", key = "subj_id")
 
 predict_gcm <- function(data, metr, id, unidim = FALSE) {
   args <- list(formula = response ~ feature1 + feature2 + feature3, 
@@ -32,7 +32,7 @@ dt[, pred_mink := predict_gcm(data = .SD, metr = "mink", id = unique(subj_id)), 
 dt[, pred_disc_unidim := predict_gcm(data = .SD, metr = "disc", id = unique(subj_id), unidim = TRUE), by = subj_id]
 dt[, pred_mink_unidim := predict_gcm(data = .SD, metr = "mink", id = unique(subj_id), unidim = TRUE), by = subj_id]
 dt[, pred_random := 0.5]
-fwrite(dt[, c("subj_id", "trial", grep("^pred", names(dt), value = TRUE)), with = FALSE], "../../data/results/categorization_data_with_predictions.csv")
+fwrite(dt[, c("subj_id", "trial", grep("^pred", names(dt), value = TRUE)), with = FALSE], "../../data/results/categorization_data_with_predictions_train2.csv")
 cat("\n Loaded dt with predictions \n")
 
 # Explorative analyses: discrete threshold model
