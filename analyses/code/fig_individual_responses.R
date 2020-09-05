@@ -1,5 +1,4 @@
 # Plots mean and sd responses of each participants for each new test stimulus
-library(data.table)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 source("5_compares_models.R")
 source("fig_setup.R")
@@ -7,7 +6,7 @@ source("fig_setup.R")
 dt <- dt[block == "test" & stim_type == "new", ]
 dt[, time_pressure_cond := as.factor(time_pressure_cond)]
 dt[, stim := factor(stim, levels = c("100", "003", "221", "231", "321", "331"))]
-best_model <- weights[, .(best_model = colnames(weights)[which(.SD > .90) + 2]), by = subj_id, .SDcols = 3:7]
+best_model <- weights[, .(best_model = colnames(weights)[which(.SD > weights_crit) + 2]), by = subj_id, .SDcols = 3:7]
 no_best_model <- data.table(subj_id = unique(dt$subj_id)[unique(dt$subj_id) %in% best_model$subj_id == FALSE], 
                             best_model = "none")
 best_model <- rbind(best_model, no_best_model)
@@ -45,4 +44,4 @@ ggplot(dt[time_pressure_cond == TRUE, ], aes(x = stim, y = response)) +
     panel.grid.minor = element_blank()) +
   facet_wrap(~subj_id, scales = "free_x") +
   labs(title = "Time Pressure Condition: Responses and Predictions of Winning Model", color = "Winning Model")
-ggsave("../../output/images/fig_individual_responses_tp.png", height = 10, width = 15)
+ggsave("../../output/images/fig_individual_responses_tp_train2.png", height = 10, width = 15)

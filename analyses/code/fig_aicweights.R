@@ -1,16 +1,15 @@
-library(data.table)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 source("5_compares_models.R")
 source("fig_setup.R")
 
 weights[rowSums(round(weights[, 3:7], 2)) != 1]
 weights[, 3:7] <- round(weights[, 3:7], 3)
-weights[, best_model_exists := as.numeric(weights_above_90)]
-weights[, disc_best := as.numeric(disc >= .90)]
-weights[, disc_unidim_best := as.numeric(disc_unidim >= .90)]
-weights[, mink_best := as.numeric(mink >= .90)]
-weights[, mink_unidim_best := as.numeric(mink_unidim >= .90)]
-weights[, random_best := as.numeric(random >= .90)]
+weights[, best_model_exists := as.numeric(weights_above_crit)]
+weights[, disc_best := as.numeric(disc >= weights_crit)]
+weights[, disc_unidim_best := as.numeric(disc_unidim >= weights_crit)]
+weights[, mink_best := as.numeric(mink >= weights_crit)]
+weights[, mink_unidim_best := as.numeric(mink_unidim >= weights_crit)]
+weights[, random_best := as.numeric(random >= weights_crit)]
 setorderv(weights, cols = c("best_model_exists", "disc_best", "disc_unidim_best", "mink_best", "mink_unidim_best", "random_best",
                             "disc", "disc_unidim", "mink", "mink_unidim", "random"), order = -1)
 weights[, ord := seq_len(.N), by = time_pressure_cond]
@@ -34,4 +33,4 @@ ggplot(weights, aes(x = ord, y = weight, fill = model)) +
         legend.title = element_text(size = 12))
   # ggtitle("Distribution of AIC weights per participant")
 
-ggsave("../../output/images/aicweights.png")
+ggsave("../../output/images/aicweights_train2.png")
