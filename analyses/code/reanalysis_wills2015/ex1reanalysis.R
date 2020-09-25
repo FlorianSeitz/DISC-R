@@ -6,7 +6,8 @@ library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(yarrr)
-setwd("C:/Users/Sylvia/Documents/Masterarbeit/Simulationen")
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
 source("Models/GCM_Prot.R")
 source("Models/Similarity Modelle.R")
 source("~/FS' 18/Forecasting/Error Measures.R")
