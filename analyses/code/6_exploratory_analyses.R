@@ -165,3 +165,69 @@ model_comparisons_individual <- rbindlist(apply(model_pairs, 1, function(x) {
 model_comparisons_individual[is.na(m1_better_m2), m1_better_m2 := 0]
 model_comparisons_individual <- model_comparisons_individual[, .(sum = sum(m1_better_m2)), by = list(time_pressure_cond, m1)]
 setkey(model_comparisons_individual, time_pressure_cond, sum)
+
+# 3. Rule / Boundary Model (rule_seitz2021)
+rm(list = ls(all = TRUE))
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(gtools, RVAideMemoire, data.table, cognitiveutils, splitstackshape, esc, tidyr)
+set.seed(932)
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # change this to the folder where this script is lying; works only in RStudio
+dt <- fread("../../data/results/categorization_data_with_predictions.csv", 
+            key = c("subj_id", "trial"))[fread("../../data/processed/categorization_exp_main.csv", 
+                                               select = c("subj_id", "trial", "block", "too_slow", "time_pressure_cond", 
+                                                          "response", "feature1", "feature2", "feature3", "stim", "stim_type"), 
+                                               key = c("subj_id", "trial"),
+                                               colClasses = list("character" = "stim"))]
+
+rule_dt <- dt[block == "training", {
+  rule_seitz2021(response ~ feature1 + feature2 + feature3, data = .SD,
+                 choicerule = "epsilon",
+                 discount = nrow(.SD) - 100)$par}, by = subj_id]
+
+dt[, pred_rule := rule_seitz2021(response ~ feature1 + feature2 + feature3, data = .SD,
+                                 choicerule = "epsilon", 
+                                 fix = list(eps = rule_dt[subj_id, eps]))$predict(), by = subj_id]
+
+cols <- colnames(dt)[grepl(pattern = "^pred", x = colnames(dt))]
+out_cols <- substring(cols, regexpr("_", cols) + 1)
+ll_test <- dt[block == "test" & too_slow == FALSE & stim_type == "new", lapply(.SD, function(x) {gof(obs = response, pred = x, type = "loglik", response = 'disc', options = list(response = "discrete"), na.rm = TRUE)}), .SDcols = cols, by = list(time_pressure_cond, subj_id)]
+setnames(ll_test, cols, out_cols)
+
+ll_test[, best_fitting_model := names(which.max(.SD)), by = list(subj_id, time_pressure_cond)]
+
+weights <- ll_test[, exp(.SD - max(.SD)), by = list(subj_id, time_pressure_cond), .SDcols = out_cols]
+weights[, (out_cols) := round(.SD/ rowSums(.SD), 4), by = list(subj_id, time_pressure_cond)]
+
+weights_above_90 <- weights[, base::max(.SD) >= .70, by = list(time_pressure_cond, subj_id)][, V1]
+model_distr <- ll_test[weights_above_90, .N, by = list(time_pressure_cond, best_fitting_model)]
+
+# 4. Choice inconsistency analyses (soft-max choice rule)
+dt <- fread("../../data/processed/categorization_exp_main.csv", key = "subj_id", colClasses = list("character" = "stim"))
+pars <- fread(input = "../../data/processed/categorization_main_fitted_parm_gcm.csv", key = "subj_id")
+pars_uni <- fread(input = "../../data/processed/categorization_main_fitted_parm_gcm_unidim.csv", key = "subj_id")
+
+predict_gcm <- function(data, metr, id, unidim = FALSE) {
+  args <- list(formula = response ~ feature1 + feature2 + feature3, 
+               data = data[block == "training"], cat = ~ true_cat, metric = metr, 
+               choicerule = NULL)
+  if (unidim == FALSE) {
+    m <- do.call(gcm, c(args, fixed = list(unlist(pars[metric == metr & subj_id == id, -c(1:2, 9)]))))
+  } else {
+    m <- do.call(gcm_unidim, c(args, fixed = list(unlist(pars_uni[metric == metr & subj_id == id, -c(1:2, 9)]))))
+  }
+  c(m$predict(), m$predict(newdata = data[block != "training", ]))
+}
+
+# Predict for discrete and Minkowski model
+dt[, pred_disc := predict_gcm(data = .SD, metr = "disc", id = unique(subj_id)), by = subj_id]
+dt[, pred_mink := predict_gcm(data = .SD, metr = "mink", id = unique(subj_id)), by = subj_id]
+dt[, pred_disc_unidim := predict_gcm(data = .SD, metr = "disc", id = unique(subj_id), unidim = TRUE), by = subj_id]
+dt[, pred_mink_unidim := predict_gcm(data = .SD, metr = "mink", id = unique(subj_id), unidim = TRUE), by = subj_id]
+
+dt <- as.data.table(pivot_longer(dt, colnames(dt)[grepl("^pred", colnames(dt))], 
+                                 names_to = "model", values_to = "pred"))
+dt[block == "test" & !is.na(response) & subj_id == "ahcb"][, {
+  print(subj_id);
+  softmax(response ~ pred, data = .SD, options = list(solver = "solnp"))$par}, by = .(subj_id, model)]

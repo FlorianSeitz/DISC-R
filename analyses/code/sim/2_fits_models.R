@@ -2,10 +2,12 @@
 rm(list = ls(all = TRUE))
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # changes working directory to folder where this script is
 library(data.table)
-source("~/cogscimodels/R/gcm_sim_unidim.R", chdir = TRUE)
-source("~/cogscimodels/R/gcm_sim.R", chdir = TRUE)
-source("~/cogscimodels/R/cogscimodel-class.R", chdir = TRUE)
-devtools::load_all("~/cogsciutils/")
+devtools::load_all("~/R/cognitivemodels/")
+
+# source("~/R/cognitivemodels/R/gcm_sim_unidim.R", chdir = TRUE)
+# source("~/R/cognitivemodels/R/gcm_sim.R", chdir = TRUE)
+# source("~/R/cognitivemodels/R/cogscimodel-class.R", chdir = TRUE)
+# devtools::load_all("~/cogsciutils/")
 
 dt <- fread("../../../data/processed/similarity_exp_main.csv",
             colClasses = list("character" = "stim_left", "character" = "stim_right"))
@@ -31,14 +33,14 @@ tp_dt <- dt[(time_pressure_first == TRUE & block == "test_1") | (time_pressure_f
 ntp_dt <- dt[(time_pressure_first == FALSE & block == "test_1") | (time_pressure_first == TRUE & block == "test_2")]
 
 # Fits the parameters of the 4 model versions (2 metrics x 2 attention dimensionalities)
-fitted_parm_gcm <- rbindlist(apply(i_combs[1:2, ], 1, function(i_comb) { # fitting sample: 2 out of 4 per type
+fitted_parm_gcm <- rbindlist(apply(i_combs[1:25, ], 1, function(i_comb) { # fitting sample: 2 out of 4 per type
   rbindlist(lapply(c("d", "m"), function(x) { # metric: discrete vs Minkowski
-    rbind(tp_dt[subj_id == "gbwe", {print(.GRP); fit(.SD, metr = x, i_comb = i_comb, tp = TRUE)}, by = subj_id], # attention: multidim (tp)
-          tp_dt[subj_id == "gbwe", {print(.GRP); fit(.SD, metr = x, i_comb = i_comb, tp = TRUE, unidim = TRUE)}, by = subj_id], # attention: unidim (tp)
-          ntp_dt[subj_id == "gbwe", {print(.GRP); fit(.SD, metr = x, i_comb = i_comb)}, by = subj_id], # attention: multidim (ntp)
-          ntp_dt[subj_id == "gbwe", {print(.GRP); fit(.SD, metr = x, i_comb = i_comb, unidim = TRUE)}, by = subj_id] # # attention: unidim (ntp)
+    rbind(tp_dt[subj_id == "ceok", {print(.GRP); fit(.SD, metr = x, i_comb = i_comb, tp = TRUE)}, by = subj_id], # attention: multidim (tp)
+          tp_dt[subj_id == "ceok", {print(.GRP); fit(.SD, metr = x, i_comb = i_comb, tp = TRUE, unidim = TRUE)}, by = subj_id], # attention: unidim (tp)
+          ntp_dt[subj_id == "ceok", {print(.GRP); fit(.SD, metr = x, i_comb = i_comb)}, by = subj_id], # attention: multidim (ntp)
+          ntp_dt[subj_id == "ceok", {print(.GRP); fit(.SD, metr = x, i_comb = i_comb, unidim = TRUE)}, by = subj_id] # # attention: unidim (ntp)
     )
   }))
 }), id = "metric")
 fitted_parm_gcm[, metric := ifelse(metric == 1, "disc", "mink")]
-fwrite(fitted_parm_gcm, file = "../../../data/processed/similarity_main_fitted_parm_gcm_tp.csv")
+# fwrite(fitted_parm_gcm, file = "../../../data/processed/similarity_main_fitted_parm_gcm.csv")

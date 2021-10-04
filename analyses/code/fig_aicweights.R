@@ -32,6 +32,6 @@ ggplot(weights, aes(x = ord, y = weight, fill = model)) +
         axis.ticks.x = element_blank(),
         strip.text = element_text(size = 12),
         legend.title = element_text(size = 12))
-  # ggtitle("Distribution of AIC weights per participant")
+# ggtitle("Distribution of AIC weights per participant")
 
 ggsave("../../output/images/aicweights.png")

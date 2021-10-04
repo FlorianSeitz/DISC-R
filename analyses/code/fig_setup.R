@@ -15,18 +15,16 @@ bw_cols_light <- c("MINK-MULTI" = grey(0.75, 0.5),
                    "DISC-MULTI" = grey(1, 0.5),
                    "DISC-UNI" = grey(0.5, 0.5),
                    "RANDOM" = grey(0, 0.5))
-bw_patterns <- c("MINK-MULTI" = "crosshatch", 
-             "MINK-UNI" = "crosshatch", 
-             "DISC-MULTI" = "circle", 
-             "DISC-UNI" = "circle",
-             "RANDOM" = NA,
-             "NONE" = NA) 
-bw_patterns_cols <- c("MINK-MULTI" = grey(0.80), 
-             "MINK-UNI" = grey(0.40), 
-             "DISC-MULTI" = grey(0.80), 
-             "DISC-UNI" = grey(0.40), 
-             "RANDOM" = grey(0),
-             "NONE" = grey(1))
+bw_patterns <- c(gcm = "none",
+                 gcm_unidim = "stripe",
+                 gcm_disc = "none",
+                 gcm_disc_unidim = "stripe",
+                 random = "none") 
+bw_patterns_cols <- c(gcm = grey(.4),
+                      gcm_unidim = grey(.4),
+                      gcm_disc = grey(.8),
+                      gcm_disc_unidim = grey(.8),
+                      random = grey(1))
 
 stim_order <- c("002", "012", "101", "111", "221", "231", "321", "331", "003", "100")
 

@@ -4,16 +4,19 @@ library(RVAideMemoire)
 library(data.table)
 library(splitstackshape)
 library(esc)
+library(cognitiveutils)
+library(tidyr)
 set.seed(932)
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # changes wd to folder of script; requires RStudio
-devtools::load_all("~/cogsciutils/")
+# devtools::load_all("~/R/cogsciutils/")
 
 # 0. Prepares data
 files <- list.files(path = "../../../data/results/", pattern = c("similarity.+predictions"), full.names = TRUE)
 dt <- rbindlist(lapply(files, fread, fill = TRUE, colClasses = list("character" = c("type")),
                        select = c("subj_id", "trial", "block", "stim_left", "stim_right", "type", "response", "response_s", "time_pressure",
                                   "i_comb", "pred_disc", "pred_mink", "pred_disc_unidim", "pred_mink_unidim", "pred_random")))
+pars <- fread("~/Projects/DISC-R/data/processed/similarity_main_fitted_parm_gcm.csv")
 
 # 0.1. Generates combinations for fitting and hold-out sample (for each stimulus type A-D choose 2 out of 4 as fitting sample)
 combs <- combn(1:4, 2) # which stimuli of a given type to pick for hold-out (reversed in the following line)
@@ -25,20 +28,32 @@ i_combs_id <- apply(i_combs, 1, paste0, collapse = "")
 cols <- colnames(dt)[grepl(pattern = "^pred", x = colnames(dt))]
 out_cols <- substring(cols, regexpr("_", cols) + 1)
 
+dt <- as.data.table(pivot_longer(dt, cols = all_of(cols), names_to = "model", values_to = "prediction"))
+dt <- dt[model != "pred_random"]
+
+# pars[, model := paste0("pred_", metric, ifelse(unidim == TRUE, "_unidim", ""))]
+# dt <- merge(dt, pars[, .(subj_id, model, time_pressure = tp, i_comb, sigma)])
+
 # 0.3. Function for calculating the continuous log likelihood (the higher the better)
-calculate_gof <- function(data, comb) {
-  combs <- combs[, i_combs[which(comb == i_combs_id), ]]
-  data = rbind(data[type == "A", .SD[combs[, 1]], by = trial],
-               data[type == "B", .SD[combs[, 2]], by = trial],
-               data[type == "C", .SD[combs[, 3]], by = trial],
-               data[type == "D", .SD[combs[, 4]], by = trial],
-               data[type %in% c("I", "V"), .SD])
-  data[, lapply(.SD, function(x) {gof(obs = response_s, pred = x, type = "loglik", options = list(response = "continuous", pdf = "truncnormal", a = 0, b = 1), na.rm = TRUE)}), .SDcols = cols]
+calculate_gof <- function(data, i_comb, sigma) {
+  comb <- combs[, i_combs[which(i_comb == i_combs_id), ]]
+  data <- rbind(data[type == "A", .SD[comb[, 1]], by = trial],
+                data[type == "B", .SD[comb[, 2]], by = trial],
+                data[type == "C", .SD[comb[, 3]], by = trial],
+                data[type == "D", .SD[comb[, 4]], by = trial],
+                data[type %in% c("I", "V"), .SD])
+  # data[, lapply(.SD, function(x) {gof(obs = response_s, pred = x, type = "loglik", options = list(response = "continuous", pdf = "truncnormal", a = 0, b = 1), na.rm = TRUE)}), .SDcols = cols]
+  data <- data[!is.na(response_s)]
+  likelihood <- data[, dtruncnorm(x = response_s, a = 0, b = 1, mean = prediction, sd = sigma)]
+  likelihood[likelihood == 0] <- .Machine$double.eps
+  sum(log(likelihood))
 }
 
-# ll_test <- dt[, calculate_gof(data = .SD, comb = unique(i_comb)), by = list(i_comb, time_pressure, subj_id)]
+# ll_test <- dt[, .(ll = calculate_gof(data = .SD, i_comb = unique(i_comb), sigma = unique(sigma))), by = list(subj_id, time_pressure, i_comb, model)]
 # fwrite(ll_test, "../../../data/results/similarity_log_likelihood.csv")
 ll_test <- fread("../../../data/results/similarity_log_likelihood.csv")
+ll_test <- dcast(ll_test, subj_id + time_pressure + i_comb ~ model)
+ll_test[, pred_random := 0]
 ll_test <- ll_test[, lapply(.SD, median), .SDcols = cols, by = list(subj_id, time_pressure)] # averages lls across hold-out samples
 
 # 1. Aggregate model comparison (H1d & H2b)
@@ -54,41 +69,40 @@ weights_agg <- ll_test_agg[, exp(.SD - max(.SD)), by = time_pressure, .SDcols = 
 weights_agg[, (out_cols) := .SD/ rowSums(.SD), by = time_pressure]
 
 # 1.4. Calculates pairwise comparisons between models (evidence ratio, see Wagenmakers & Farrell, 2004, p.194)
-model_pairs <- permutations(n = 5, r = 2, v = 2:6)
-model_comparisons <- rbindlist(apply(model_pairs, 1, function(x) {
-  model_pair <- colnames(weights_agg[, ..x])
-  x <- c(1, x)
-  model_comparison <- weights_agg[, ..x][, .SD/rowSums(.SD), by = time_pressure]
-  model_comparison[, .(m1_better_m2 = ifelse(get(model_pair[1]) >= .90,
-                                             1,
-                                             ifelse(get(model_pair[1]) <= .10, -1, 0)),
-                       m1 = model_pair[1],
-                       m2 = model_pair[2]), by = time_pressure]
+model_pairs <- gtools::permutations(n = 5, r = 2) # matrix of model pairs
+crit <- .90
+models <- c("mink", "disc", "mink_unidim", "disc_unidim", "random") # specify the models to analyze
+model_ranks_agg <- rbindlist(apply(model_pairs, 1, function(x) { # compares models pairwise
+  model_pair <- models[x] # gets the names of the two models
+  weights_comparison <- weights_agg[, ..model_pair] # extracts the weights of the model pair
+  model_comparison <- weights_comparison[, .SD/(rowSums(.SD))] # normalizes the weights
+  # Makes comparison and weights it with actual weight
+  model_comparison <- model_comparison[, .(m1_better_m2 = ifelse(get(model_pair[1]) >= crit, 1,
+                                                                 ifelse(get(model_pair[2]) >= crit, -1, 0)),
+                                           m1 = model_pair[1],
+                                           m2 = model_pair[2])]
+  model_comparison[, m1_better_m2 := m1_better_m2 * weights_comparison[, abs(get(model_pair[1]) - get(model_pair[2]))]]
+  model_comparison[, time_pressure_cond := weights_agg$time_pressure]
 }))
-
-model_comparisons[is.na(model_comparisons$m1_better_m2), m1_better_m2 := 0]
-model_comparisons <- model_comparisons[, .(sum = sum(m1_better_m2)), by = list(time_pressure, m1)]
-setkey(model_comparisons, time_pressure, sum)
+model_ranks_agg <- model_ranks_agg[, .(sum = round(sum(m1_better_m2), 2)), by = list(time_pressure_cond, m1)]
+(setkey(model_ranks_agg, time_pressure_cond, sum)) # rank order (higher number = better)
 cat("\n Generated ll_test_agg and model_comparisons \n")
 
 # 1.5. Additional fit indices
-calculate_additional_indices <- function(data, comb) {
-  combs <- combs[, i_combs[which(comb == i_combs_id), ]]
-  data = rbind(data[type == "A", .SD[combs[, 1]], by = trial],
-               data[type == "B", .SD[combs[, 2]], by = trial],
-               data[type == "C", .SD[combs[, 3]], by = trial],
-               data[type == "D", .SD[combs[, 4]], by = trial]) # excluded I and V trials to avoid observed values of 0
-  # data[!is.na(response_s), lapply(.SD, function(x) {mape = MAPE(obs = response_s, pred = x, response = 'cont', discount = 0)}), .SDcols = cols]
-  # data[!is.na(response_s), lapply(.SD, function(x) {mse = MSE(obs = response, pred = x, response = 'cont', discount = 0)}), .SDcols = cols]
-  
-  dt_long <- melt(data, measure.vars = list(grep("pred", colnames(data))), variable.name = "model", value.name = "pred")
-  levels(dt_long$model) <- out_cols
-  dt_long[!is.na(response_s), .(mape = MAPE(obs = response_s, pred = pred, response = 'cont', discount = 0),
-                                mse = MSE(obs = response, pred = pred, response = 'cont', discount = 0)), by = list(model)]
+calculate_additional_indices <- function(data, i_comb) {
+  comb <- combs[, i_combs[which(i_comb == i_combs_id), ]]
+  data = rbind(data[type == "A", .SD[comb[, 1]], by = trial],
+               data[type == "B", .SD[comb[, 2]], by = trial],
+               data[type == "C", .SD[comb[, 3]], by = trial],
+               data[type == "D", .SD[comb[, 4]], by = trial],
+               data[type %in% c("I", "V"), .SD]) 
+  data[response_s == 0, response_s := .Machine$double.eps]
+  data[!is.na(response_s), .(mape_d = cognitiveutils::MAPE(obs = response_s, pred = prediction, response = 'disc', discount = 0)
+                             # mse = cognitiveutils::MSE(obs = response_s, pred = prediction, response = 'cont', discount = 0)
+                             )]
 }
-# add_ind <- dt[, calculate_additional_indices(data = .SD, comb = unique(i_comb)), by = list(i_comb, time_pressure, subj_id)]
-# add_ind <- add_ind[, .(M_MAPE = mean(mape), Md_MAPE = median(mape), SD_MAPE = sd(mape),
-#                        M_MSE = mean(mse), Md_MSE = median(mse), SD_MSE = sd(mse)), by = list(time_pressure, model)]
+add_ind <- dt[, calculate_additional_indices(data = .SD, i_comb = unique(i_comb)), by = list(i_comb, time_pressure, subj_id, model)]
+add_ind_agg <- add_ind[, .(mape = mean(mape), mape_d = mean(mape_d), mse = mean(mse)), by = list(time_pressure, model)]
 # 
 # ll_ind <- melt(ll_test, measure.vars = list(grep("pred", colnames(ll_test))), variable.name = "model", value.name = "ll")
 # ll_ind <- ll_ind[, .(M_LL = mean(ll), Md_LL = median(ll), SD_LL = sd(ll)), by = list(time_pressure, model)]
@@ -103,17 +117,21 @@ ll_test[, best_fitting_model := names(which.max(.SD)), by = list(subj_id, time_p
 
 # 2.1.3. Calculates weights (equal to AIC weights, because no free parameters)
 weights <- ll_test[, exp(.SD - max(.SD)), by = list(subj_id, time_pressure), .SDcols = out_cols]
-weights[, (out_cols) := round(.SD/ rowSums(.SD), 4), by = list(subj_id, time_pressure)]
+weights[, (out_cols) := .SD/ rowSums(.SD), by = list(subj_id, time_pressure)]
+
+ranking(weights[, lapply(.SD, mean), .SDcols = out_cols, by = .(time_pressure_cond)], models = out_cols, crit)
+ranking(weights, models = out_cols, crit, exclude = TRUE)
 
 # 2.1.4. Calculates distribution of best fitting models for each time pressure condition
-weights_above_90 <- weights[, base::max(.SD) >= .90, by = list(time_pressure, subj_id)][, V1]
+weights_above_90 <- weights[, base::max(.SD) >= crit, by = list(time_pressure, subj_id)][, V1]
 model_distr <- ll_test[weights_above_90, .N, by = list(time_pressure, best_fitting_model)]
 # model_distr <- rbind(model_distr, ll_test[, .(best_fitting_model = "disc_unidim", # out_cols[out_cols %in% best_fitting_model == FALSE],
 #                                               N = 0), by = time_pressure])
 ll_test[weights_above_90, table(time_pressure, best_fitting_model)]
 
 # 2.1.5. Chi-squared test (H1e & H2c)
-model_distr <- rbind(model_distr, data.table(TRUE, "disc", 0), use.names = FALSE) # DELETE THIS
+model_distr <- rbind(model_distr, expand.grid(time_pressure = c(TRUE, FALSE), best_fitting_model = out_cols, N = 0))
+model_distr <- model_distr[!duplicated(model_distr[, -"N"])]
 model_distr[, chisq.test(N), by = time_pressure]
 
 # 2.1.6. Pairwise comparisons Chi-squared test (H1e & H2c)
@@ -126,16 +144,17 @@ model_distr_short[time_pressure == FALSE, multinomial.multcomp(N, p.method = "ho
 # esc_bin_prop(prop1event = 15/31, grp1n = 31, prop2event = 9/31, grp2n = 31, es.type = "or")
 
 # 2.1.7. Calculates pairwise comparisons between models (evidence ratio, see Wagenmakers & Farrell, 2004, p.194) (H1f & H2c)
-model_pairs <- permutations(n = 5, r = 2, v = 3:7)
 model_comparisons_individual <- rbindlist(apply(model_pairs, 1, function(x) {
-  model_pair <- colnames(weights[, ..x])
-  x <- c(2, x)
-  model_comparison <- weights[, ..x][, .SD/rowSums(.SD), by = time_pressure]
-  model_comparison[, .(m1_better_m2 = ifelse(get(model_pair[1]) >= .90,
-                                             1,
-                                             ifelse(get(model_pair[1]) <= .10, -1, 0)),
-                       m1 = model_pair[1],
-                       m2 = model_pair[2]), by = time_pressure]
+  model_pair <- models[x] # gets the names of the two models
+  weights_comparison <- weights[, ..model_pair] # extracts the weights of the model pair
+  model_comparison <- weights_comparison[, .SD/(rowSums(.SD))] # normalizes the weights
+  # Makes comparison and weights it with actual weight
+  model_comparison <- model_comparison[, .(m1_better_m2 = ifelse(get(model_pair[1]) >= crit, 1,
+                                                                 ifelse(get(model_pair[2]) >= crit, -1, 0)),
+                                           m1 = model_pair[1],
+                                           m2 = model_pair[2])]
+  # model_comparison[, m1_better_m2 := m1_better_m2 * weights_comparison[, abs(get(model_pair[1]) - get(model_pair[2]))]]
+  model_comparison[, time_pressure := weights$time_pressure]
 }))
 model_comparisons_individual[is.na(m1_better_m2), m1_better_m2 := 0]
 model_comparisons_individual <- model_comparisons_individual[, .(sum = sum(m1_better_m2)), by = list(time_pressure, m1)]
@@ -143,7 +162,7 @@ setkey(model_comparisons_individual, time_pressure, sum)
 
 # 2.1.8. Fisher's exact test (H3a, H3b)
 model_distr_wide <- dcast(model_distr, time_pressure ~ best_fitting_model)
-fisher.test(model_distr_wide[, c(2, 3)])
+fisher.test(model_distr_wide)
 
 # 2.1.9. Pairwise comparisons Fisher's exact test (H3a, H3b)
 disc_distr <- model_distr[grep("disc", best_fitting_model), .(disc = sum(N)), by = time_pressure]
